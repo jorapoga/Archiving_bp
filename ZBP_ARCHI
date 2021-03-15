@@ -1,0 +1,631 @@
+FUNCTION zbp_archi.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     VALUE(I_BP) TYPE  BDCDATA-FVAL
+*"     VALUE(I_CV) TYPE  NUMC1 DEFAULT '2'
+*"     VALUE(CTU) LIKE  APQI-PUTACTIVE DEFAULT 'X'
+*"     VALUE(MODE) LIKE  APQI-PUTACTIVE DEFAULT 'N'
+*"     VALUE(UPDATE) LIKE  APQI-PUTACTIVE DEFAULT 'S'
+*"     VALUE(GROUP) LIKE  APQI-GROUPID OPTIONAL
+*"     VALUE(USER) LIKE  APQI-USERID OPTIONAL
+*"     VALUE(KEEP) LIKE  APQI-QERASE OPTIONAL
+*"     VALUE(HOLDDATE) LIKE  APQI-STARTDATE OPTIONAL
+*"     VALUE(NODATA) LIKE  APQI-PUTACTIVE DEFAULT '/'
+*"  EXPORTING
+*"     VALUE(SUBRC) LIKE  SYST-SUBRC
+*"  TABLES
+*"      MESSTAB STRUCTURE  BDCMSGCOLL OPTIONAL
+*"----------------------------------------------------------------------
+
+  DATA(lv_user) = sy-uname.
+  DATA: lv_archi_obj1 TYPE bdc_fval VALUE 'FI_ACCRECV',
+        lv_archi_obj2 TYPE bdc_fval VALUE 'CA_BUPA',
+        lv_flag_true  TYPE bdc_fval VALUE 'X',
+        lv_flag_false TYPE bdc_fval VALUE '',
+        lv_local      TYPE bdc_fval VALUE 'LOCL',
+        lv_type_md    TYPE bdc_fval VALUE 'MD',
+        lv_value_1    TYPE bdc_fval VALUE '1',
+        lv_variante   TYPE bdc_fval.
+
+  lv_variante = i_bp && sy-datum+4(4).
+  subrc = 0.
+***-----------------------------> Start Call BUPA_PREDA <-----------------------***
+  PERFORM bdc_nodata      USING nodata.
+
+  PERFORM open_group      USING group user keep holddate ctu.
+
+  PERFORM bdc_dynpro      USING 'BUPA_PREPARE_DA' '1000'.
+  PERFORM bdc_field       USING 'BDC_CURSOR'
+                                'TEST'.
+  PERFORM bdc_field       USING 'BDC_OKCODE'
+                                '=ONLI'.
+  PERFORM bdc_field       USING 'PARTNER-LOW'
+                                i_bp.
+  PERFORM bdc_field       USING 'USEDEF'
+                                lv_flag_true.
+  PERFORM bdc_field       USING 'DELE'
+                                lv_flag_true.
+  PERFORM bdc_field       USING 'SYSTD'
+                                lv_flag_true.
+  PERFORM bdc_field       USING 'SYSTA'
+                                lv_flag_true.
+  PERFORM bdc_field       USING 'SETAN'
+                                lv_flag_true.
+  PERFORM bdc_field       USING 'LOG'
+                                lv_flag_true.
+  PERFORM bdc_field       USING 'SAVE'
+                                lv_flag_true.
+  PERFORM bdc_field       USING 'TEST'
+                                lv_flag_false.
+  PERFORM bdc_dynpro      USING 'SAPLSPO1' '0500'.
+  PERFORM bdc_field       USING 'BDC_OKCODE'
+                                '=OPT1'.
+
+  PERFORM bdc_transaction TABLES messtab
+  USING                         'BUPA_PRE_DA'
+                                ctu
+                                mode
+                                update.
+***-----------------------------> End Call BUPA_PREDA <-----------------------***
+  IF sy-subrc <> 0.
+    subrc = sy-subrc.
+    PERFORM get_message TABLES messtab.
+    EXIT.
+  ENDIF.
+***-----------------------------> Start First Call SARA <-----------------------***
+  IF i_cv EQ 2. "Rutina exclusiva para BP Customer
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0060'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_TXT-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SKIP'.
+    PERFORM bdc_field       USING 'ARCH_TXT-OBJECT'
+                                  lv_archi_obj1.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0060'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_TXT-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=ARCH'.
+    PERFORM bdc_field       USING 'ARCH_TXT-OBJECT'
+                                  lv_archi_obj1.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=VAED'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                   lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLSVAR' '0315'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=FRAD'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'FLAG1'.
+    PERFORM bdc_field       USING 'FLAG1'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'FLAG2'
+                                  lv_flag_false.
+    PERFORM bdc_dynpro      USING 'SAPLSVAR' '0315'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=GOON'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'CHOOSE_DYNNR_EXT-DYNNR(01)'.
+    PERFORM bdc_field       USING 'FLAG1'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'FI_ACCRECV_WRI' '1000'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'P_WRIPRD'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=PO_UCOM1'.
+    PERFORM bdc_field       USING 'P_TYPE'
+                                  lv_type_md.
+    PERFORM bdc_field       USING 'SO_KUNNR-LOW'
+                                  i_bp.
+    PERFORM bdc_field       USING 'P_LOEVM'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_WRITST'
+                                  lv_flag_false.
+    PERFORM bdc_field       USING 'P_WRIPRD'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'FI_ACCRECV_WRI' '1000'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'P_PROT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=GOON'.
+    PERFORM bdc_field       USING 'P_TYPE'
+                                  lv_type_md.
+    PERFORM bdc_field       USING 'SO_KUNNR-LOW'
+                                  i_bp.
+    PERFORM bdc_field       USING 'P_LOEVM'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_WRIPRD'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_PROT'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'SAPLSVAR' '0281'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVE'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'RSVAR-VTEXT'.
+    PERFORM bdc_field       USING 'RSVAR-VTEXT'
+                                  i_bp.
+    PERFORM bdc_dynpro      USING 'FI_ACCRECV_WRI' '1000'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'P_PROT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVE'.
+    PERFORM bdc_field       USING 'P_TYPE'
+                                  lv_type_md.
+    PERFORM bdc_field       USING 'SO_KUNNR-LOW'
+                                  i_bp.
+    PERFORM bdc_field       USING 'P_LOEVM'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_WRIPRD'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_PROT'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'FI_ACCRECV_WRI' '1000'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'P_PROT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=VBAC'.
+    PERFORM bdc_field       USING 'P_TYPE'
+                                  lv_type_md.
+    PERFORM bdc_field       USING 'SO_KUNNR-LOW'
+                                  i_bp.
+    PERFORM bdc_field       USING 'P_LOEVM'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_WRIPRD'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_PROT'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=DATE'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                  lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=IMMD'.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1010-PERIODIC'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=CHCK'.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1010-PERIODIC'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVS'.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SPOL'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                  lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLSPRI' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'PRI_PARAMS-PDEST'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVE'.
+    PERFORM bdc_field       USING 'PRI_PARAMS-PDEST'
+                                  lv_local.
+    PERFORM bdc_field       USING 'PRI_PARAMS-PRCOP'
+                                  lv_value_1.
+    PERFORM bdc_field       USING 'RADIO0500_1'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=CREA'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                  lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '/EZURU'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                  lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+***----------->Call archiving job
+    PERFORM bdc_transaction TABLES messtab
+    USING                         'SARA'
+                                  ctu
+                                  mode
+                                  update.
+    IF sy-subrc <> 0.
+      subrc = sy-subrc.
+      PERFORM get_message TABLES messtab.
+      EXIT.
+    ENDIF.
+
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0060'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_TXT-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=DELE'.
+    PERFORM bdc_field       USING 'ARCH_TXT-OBJECT'
+                                  lv_archi_obj1.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SELE'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLAADM' '0120'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_OBJ-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=MKAL'.
+    PERFORM bdc_dynpro      USING 'SAPLAADM' '0120'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_OBJ-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=ACCE'.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=DATE'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=IMMD'.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1010-PERIODIC'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=CHCK'.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1010-PERIODIC'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVS'.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SPOL'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLSPRI' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'PRI_PARAMS-PDEST'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVE'.
+    PERFORM bdc_field       USING 'PRI_PARAMS-PDEST'
+                                  lv_local.
+    PERFORM bdc_field       USING 'PRI_PARAMS-PRCOP'
+                                  lv_value_1.
+    PERFORM bdc_field       USING 'RADIO0500_1'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=CREA'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '/EZURU'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    WAIT UP TO 5 SECONDS.
+***----------->Call Delete job
+    PERFORM bdc_transaction TABLES messtab
+    USING                         'SARA'
+                                  ctu
+                                  mode
+                                  update.
+
+    READ TABLE messtab TRANSPORTING NO FIELDS WITH KEY msgid = 'BA'
+                                                       msgnr = '073'.
+    IF sy-subrc NE 0."Delete BP was not finished
+      subrc = '4'.
+      PERFORM get_message TABLES messtab.
+      EXIT.
+    ENDIF.
+  ENDIF.
+***-----------------------------> End First Call SARA <-----------------------***
+***-----------------------------> Start second call SARA with CA_BUPA <-----------------------***
+  IF i_cv EQ 1 OR i_cv EQ 2. "Common Routine BP Gen./Customer
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0060'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_TXT-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SKIP'.
+    PERFORM bdc_field       USING 'ARCH_TXT-OBJECT'
+                                  lv_archi_obj2.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0060'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_TXT-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=ARCH'.
+    PERFORM bdc_field       USING 'ARCH_TXT-OBJECT'
+                                  lv_archi_obj2.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=VAED'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                  lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLSVAR' '0315'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=FRAD'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'FLAG1'.
+    PERFORM bdc_field       USING 'FLAG1'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'FLAG2'
+                                  lv_flag_false.
+    PERFORM bdc_dynpro      USING 'SAPLSVAR' '0315'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=GOON'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'CHOOSE_DYNNR_EXT-DYNNR(01)'.
+    PERFORM bdc_field       USING 'FLAG1'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'BUSOBARCH' '1000'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'P_WRIPRD'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=PO_UCOM1'.
+    PERFORM bdc_field       USING '$O009-LOW'
+                                  i_bp.
+    PERFORM bdc_field       USING '$D000'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_WRITST'
+                                  lv_flag_false.
+    PERFORM bdc_field       USING 'P_WRIPRD'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'BUSOBARCH' '1000'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'P_PROT_O'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=GOON'.
+    PERFORM bdc_field       USING '$O009-LOW'
+                                  i_bp.
+    PERFORM bdc_field       USING '$D000'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_WRIPRD'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_PROT'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'SAPLSVAR' '0281'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVE'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'RSVAR-VTEXT'.
+    PERFORM bdc_field       USING 'RSVAR-VTEXT'
+                                  i_bp.
+    PERFORM bdc_dynpro      USING 'BUSOBARCH' '1000'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'P_PROT_O'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVE'.
+    PERFORM bdc_field       USING '$O009-LOW'
+                                  i_bp.
+    PERFORM bdc_field       USING '$D000'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_WRIPRD'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_PROT'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'BUSOBARCH' '1000'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'P_PROT_O'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=VBAC'.
+    PERFORM bdc_field       USING '$O009-LOW'
+                                  i_bp.
+    PERFORM bdc_field       USING '$D000'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_WRIPRD'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'P_PROT'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=DATE'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                  lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=IMMD'.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1010-PERIODIC'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=CHCK'.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1010-PERIODIC'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVS'.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SPOL'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                  lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user..
+    PERFORM bdc_dynpro      USING 'SAPLSPRI' '0100'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVE'.
+    PERFORM bdc_field       USING 'PRI_PARAMS-PDEST'
+                                  lv_local.
+    PERFORM bdc_field       USING 'PRI_PARAMS-PRCOP'
+                                  lv_value_1.
+    PERFORM bdc_field       USING 'RADIO0500_1'
+                                  lv_flag_true.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'PRIPAR_DYN-PRIMM'.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=CREA'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                  lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user..
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0100'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '/EZURU'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ADMI_JOBS-VARIANT'.
+    PERFORM bdc_field       USING 'ADMI_JOBS-VARIANT'
+*                                  i_bp.
+                                  lv_variante.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+***----------->Call archiving job
+    PERFORM bdc_transaction TABLES messtab
+    USING                         'SARA'
+                                  ctu
+                                  mode
+                                  update.
+
+    IF sy-subrc <> 0.
+      subrc = sy-subrc.
+      PERFORM get_message TABLES messtab.
+      EXIT.
+    ENDIF.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0060'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_TXT-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=DELE'.
+    PERFORM bdc_field       USING 'ARCH_TXT-OBJECT'
+                                  lv_archi_obj2.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SELE'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLAADM' '0120'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_OBJ-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=MKAL'.
+    PERFORM bdc_dynpro      USING 'SAPLAADM' '0120'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'ARCH_OBJ-OBJECT'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=ACCE'.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=DATE'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=IMMD'.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1010-PERIODIC'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=CHCK'.
+    PERFORM bdc_dynpro      USING 'SAPLBTCH' '1010'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1010-PERIODIC'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVS'.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SPOL'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+*                                authcknam_058.
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPLSPRI' '0100'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'PRI_PARAMS-PDEST'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=SAVE'.
+    PERFORM bdc_field       USING 'PRI_PARAMS-PDEST'
+                                  lv_local.
+    PERFORM bdc_field       USING 'PRI_PARAMS-PRCOP'
+                                  lv_value_1.
+    PERFORM bdc_field       USING 'RADIO0500_1'
+                                  lv_flag_true.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '=CREA'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    PERFORM bdc_dynpro      USING 'SAPMAADM' '0200'.
+    PERFORM bdc_field       USING 'BDC_OKCODE'
+                                  '/EZURU'.
+    PERFORM bdc_field       USING 'BDC_CURSOR'
+                                  'BTCH1120-AUTHCKNAM'.
+    PERFORM bdc_field       USING 'BTCH1120-AUTHCKNAM'
+                                  lv_user.
+    .WAIT UP TO 5 SECONDS.
+***----------->Call Delete job
+    PERFORM bdc_transaction TABLES messtab
+    USING                         'SARA'
+                                  ctu
+                                  mode
+                                  update.
+***-----------------------------> End second call SARA with CA_BUPA  <-----------------------***
+    READ TABLE messtab TRANSPORTING NO FIELDS WITH KEY msgid = 'BA'
+                                                       msgnr = '073'.
+    IF sy-subrc NE 0."Delete BP was not finished
+      subrc = '4'.
+      PERFORM get_message TABLES messtab.
+      EXIT.
+    ELSE.
+    WAIT UP TO 5 SECONDS.
+    ENDIF.
+    PERFORM get_message TABLES messtab.
+    CLEAR: lv_variante.
+  ENDIF.
+  PERFORM close_group USING     ctu.
+
+ENDFUNCTION.
+INCLUDE bdcrecxy .

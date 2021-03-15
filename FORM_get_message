@@ -1,0 +1,22 @@
+*&---------------------------------------------------------------------*
+*& Form get_message
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*&      --> MESSTAB
+*&---------------------------------------------------------------------*
+FORM get_message  TABLES   pt_messtab STRUCTURE bdcmsgcoll.
+  LOOP AT pt_messtab ASSIGNING FIELD-SYMBOL(<fs_message>).
+    CALL FUNCTION 'MESSAGE_TEXT_BUILD'
+      EXPORTING
+        msgid               = <fs_message>-msgid
+        msgnr               = <fs_message>-msgnr
+        msgv1               = <fs_message>-msgv1
+*       MSGV2               = ' '
+*       MSGV3               = ' '
+*       MSGV4               = ' '
+      IMPORTING
+        message_text_output = <fs_message>-msgv1.
+  ENDLOOP.
+  UNASSIGN <fs_message>.
+ENDFORM.
